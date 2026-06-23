@@ -4,16 +4,18 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+
+# NODE_ENV=development garante que devDependencies (vite, esbuild, tsx) sejam
+# instaladas mesmo que o Coolify injete NODE_ENV=production no ambiente
+RUN NODE_ENV=development npm ci
 
 COPY . .
 
-# GEMINI_API_KEY precisa estar disponível no momento do build
-# porque o Vite a injeta diretamente no bundle do client
+# GEMINI_API_KEY precisa estar disponível no build — o Vite a injeta no bundle
 ARG GEMINI_API_KEY
 ENV GEMINI_API_KEY=$GEMINI_API_KEY
 
-RUN npm run build
+RUN NODE_ENV=development npm run build
 
 # ── Stage 2: runtime ─────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
