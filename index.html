@@ -1,0 +1,54 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexus CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'primary': {
+                '50': '#f0f5fa',   // Azul pastel ultra suave (fundo de cartões/botões ativos)
+                '100': '#e1ebf4',  // Azul de destaque pastel suave
+                '200': '#c2d7e9',  // Tom pastel intermediário
+                '300': '#9abcdc',  // Tom pastel clássico
+                '400': '#6999cb',  // Azul médio suave
+                '500': '#1a4870',  // Cor principal do logotipo (Azul Marinho Real/Legal Design)
+                '600': '#113350',  // Um tom abaixo (escuro elegante)
+                '700': '#0d253a',  // Azul marinho profundo
+                '800': '#081724',  
+                '900': '#040b12',  
+                '950': '#020509',  
+              },
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.2.1",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0",
+    "jspdf": "https://aistudiocdn.com/jspdf@^2.5.1",
+    "jspdf-autotable": "https://aistudiocdn.com/jspdf-autotable@^3.8.2",
+    "docx": "https://aistudiocdn.com/docx@^8.5.0",
+    "file-saver": "https://aistudiocdn.com/file-saver@^2.0.5",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-50 dark:bg-gray-900">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
