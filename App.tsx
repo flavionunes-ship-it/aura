@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider, useToast } from './components/Toast';
 import { NAV_ITEMS } from './constants';
 import { Page, SystemConfig, TransactionType, Transaction } from './types';
 import DashboardPage from './pages/Dashboard';
@@ -178,6 +179,7 @@ const Header: React.FC<{
 
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
     const { systemConfig, updateSystemConfig } = useAppContext();
+    const { showToast } = useToast();
     const [name, setName] = useState(systemConfig.name);
     const [logoPreview, setLogoPreview] = useState<string | null>(systemConfig.logo);
 
@@ -192,7 +194,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
         const file = e.target.files?.[0];
         if (file) {
             if (file.size > 500000) { // Limit 500kb
-                alert("O arquivo é muito grande (máx 500kb).");
+                showToast('O arquivo é muito grande. Máximo 500kb.', 'warning');
                 return;
             }
             const reader = new FileReader();
@@ -437,9 +439,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ToastProvider>
   );
 };
 

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Product } from '../types';
 import Modal from '../components/Modal';
@@ -40,6 +40,16 @@ const ProductsPage: React.FC = () => {
     const { products, addProduct, updateProduct, deleteProduct } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
+    const [search, setSearch] = useState('');
+
+    const filteredProducts = useMemo(() => {
+        if (!search.trim()) return products;
+        const q = search.toLowerCase();
+        return products.filter(p =>
+            p.name.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q)
+        );
+    }, [products, search]);
 
     const handleSave = (productData: Omit<Product, 'id'> | Product) => {
         if ('id' in productData && productData.id) {
@@ -53,9 +63,21 @@ const ProductsPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Produtos & Serviços</h1>
-                <button onClick={() => { setEditingProduct(undefined); setIsModalOpen(true); }} className="mt-4 md:mt-0 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Adicionar Novo Produto</button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                    <div className="relative">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input
+                            type="text"
+                            placeholder="Buscar produto..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-primary-500 focus:border-primary-500 w-full sm:w-60"
+                        />
+                    </div>
+                    <button onClick={() => { setEditingProduct(undefined); setIsModalOpen(true); }} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 whitespace-nowrap">Adicionar Produto</button>
+                </div>
             </div>
 
             <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
@@ -69,7 +91,7 @@ const ProductsPage: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {products.map(product => (
+                        {filteredProducts.map(product => (
                             <tr key={product.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                                 <th scope="row" className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">{product.name}</th>
                                 <td className="px-6 py-4">{product.description}</td>
@@ -82,8 +104,10 @@ const ProductsPage: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
-                 {products.length === 0 && (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800">Nenhum produto ou serviço encontrado.</div>
+                {filteredProducts.length === 0 && (
+                    <div className="p-6 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800">
+                        {search ? `Nenhum produto encontrado para "${search}".` : 'Nenhum produto ou serviço cadastrado.'}
+                    </div>
                 )}
             </div>
 

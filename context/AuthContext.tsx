@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // For this demo, we will sign them out and pretend, or call an RPC if we had one.
         // Let's just sign out for safety and alert them.
         
-        alert("Para excluir sua conta permanentemente, entre em contato com o administrador do sistema. Você será desconectado.");
+        // Exclusão de conta requer intervenção do admin — apenas encerra a sessão
         return await signOut();
     };
 

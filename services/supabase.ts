@@ -1,9 +1,32 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
-// Custom API query builder converting 'supabase.from()' calls into local REST calls
+const TOKEN_KEY = 'aura_auth_token';
+
+function getStoredToken(): string {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; }
+  catch { return ''; }
+}
+
+function setStoredToken(token: string): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* SSR / ambiente sem localStorage */ }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { 'X-Auth-Token': token } : {};
+}
+
+// Converte nome de tabela para path da rota (underscores → hífens)
+function tableToPath(table: string): string {
+  return table.replaceAll('_', '-');
+}
+
+// ─── Query Builder ────────────────────────────────────────────────────────────
 class ApiQueryBuilder {
   private table: string;
-  private selectFields: string = '*';
   private limitVal: number | null = null;
   private isSingle: boolean = false;
   private eqFilters: Array<{ field: string; value: any }> = [];
@@ -12,52 +35,32 @@ class ApiQueryBuilder {
     this.table = table;
   }
 
-  select(fields?: string) {
-    if (fields) this.selectFields = fields;
-    return this;
-  }
+  select(_fields?: string) { return this; }
 
-  limit(num: number) {
-    this.limitVal = num;
-    return this;
-  }
+  limit(num: number) { this.limitVal = num; return this; }
 
-  single() {
-    this.isSingle = true;
-    return this;
-  }
+  single() { this.isSingle = true; return this; }
 
   eq(field: string, value: any) {
     this.eqFilters.push({ field, value });
     return this;
   }
 
-  async then(resolve: any, reject?: any) {
+  async then(resolve: (result: any) => void, reject?: (err: any) => void) {
     try {
-      // Map table names to endpoint paths
-      const routePath = this.table.replace('_', '-');
-      const url = `/api/${routePath}`;
+      const url  = `/api/${tableToPath(this.table)}`;
+      const qs   = new URLSearchParams();
 
-      const queryParams = new URLSearchParams();
-      for (const filter of this.eqFilters) {
-         queryParams.append(filter.field, String(filter.value));
-      }
-      if (this.limitVal !== null) {
-        queryParams.append('_limit', String(this.limitVal));
-      }
-      if (this.isSingle) {
-        queryParams.append('_single', 'true');
-      }
+      for (const f of this.eqFilters) qs.append(f.field, String(f.value));
+      if (this.limitVal !== null) qs.append('_limit', String(this.limitVal));
+      if (this.isSingle) qs.append('_single', 'true');
 
-      const queryStr = queryParams.toString();
-      const fetchUrl = queryStr ? `${url}?${queryStr}` : url;
+      const fetchUrl = qs.toString() ? `${url}?${qs}` : url;
+      const res = await fetch(fetchUrl, { headers: authHeaders() });
 
-      const res = await fetch(fetchUrl);
-      if (!res.ok) {
-        throw new Error(`DB fetch error ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+
       const data = await res.json();
-      
       if (this.isSingle) {
         resolve({ data: data || null, error: null });
       } else {
@@ -69,54 +72,49 @@ class ApiQueryBuilder {
     }
   }
 
-  async insert(records: any) {
-    const routePath = this.table.replace('_', '-');
-    const url = `/api/${routePath}`;
+  insert(records: any) {
+    const url = `/api/${tableToPath(this.table)}`;
 
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(records)
-      });
-      if (!res.ok) {
-        const errTxt = await res.text();
-        return { data: null, error: { message: errTxt } };
-      }
-      const data = await res.json();
-      
-      return {
-        select: () => ({
-          single: () => ({
-            then: (resolve: any) => resolve({ data, error: null })
-          }),
-          then: (resolve: any) => resolve({ data: [data], error: null })
+    // Inicia o fetch imediatamente e armazena a promise
+    const fetchPromise: Promise<{ data: any; error: any }> = fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(records)
+    }).then(async res => {
+      if (!res.ok) return { data: null, error: { message: await res.text() } };
+      return { data: await res.json(), error: null };
+    }).catch((e: any) => ({ data: null, error: { message: e.message } }));
+
+    // Retorna builder compatível com .select().single() e await direto
+    return {
+      select: () => ({
+        single: () => ({
+          then: (resolve: any, reject?: any) =>
+            fetchPromise.then(resolve, reject)
         }),
-        then: (resolve: any) => resolve({ data, error: null })
-      };
-    } catch (e: any) {
-      return { data: null, error: { message: e.message } };
-    }
+        then: (resolve: any, reject?: any) =>
+          fetchPromise.then(({ data, error }) => resolve({ data: data ? [data] : null, error }), reject)
+      }),
+      then: (resolve: any, reject?: any) => fetchPromise.then(resolve, reject)
+    };
   }
 
   async update(updates: any) {
+    const table = this.table;
     return {
-      eq: async (field: string, value: any) => {
-        const routePath = this.table.replace('_', '-');
-        const url = `/api/${routePath}/${value}`;
-        
+      eq: async (_field: string, value: any) => {
+        const url = `/api/${tableToPath(table)}/${value}`;
         try {
           const res = await fetch(url, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify(updates)
           });
           if (!res.ok) {
             const errTxt = await res.text();
             return { data: null, error: { message: errTxt } };
           }
-          const data = await res.json();
-          return { data, error: null };
+          return { data: await res.json(), error: null };
         } catch (e: any) {
           return { data: null, error: { message: e.message } };
         }
@@ -125,14 +123,14 @@ class ApiQueryBuilder {
   }
 
   async delete() {
+    const table = this.table;
     return {
-      eq: async (field: string, value: any) => {
-        const routePath = this.table.replace('_', '-');
-        const url = `/api/${routePath}/${value}`;
-        
+      eq: async (_field: string, value: any) => {
+        const url = `/api/${tableToPath(table)}/${value}`;
         try {
           const res = await fetch(url, {
-            method: "DELETE"
+            method: 'DELETE',
+            headers: authHeaders()
           });
           if (!res.ok) {
             const errTxt = await res.text();
@@ -147,32 +145,29 @@ class ApiQueryBuilder {
   }
 
   async upsert(records: any) {
-    const routePath = this.table.replace('_', '-');
-    const url = `/api/${routePath}`;
-
+    const url = `/api/${tableToPath(this.table)}`;
     try {
       const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(records)
       });
       if (!res.ok) {
         const errTxt = await res.text();
         return { data: null, error: { message: errTxt } };
       }
-      const data = await res.json();
-      return { data, error: null };
+      return { data: await res.json(), error: null };
     } catch (e: any) {
       return { data: null, error: { message: e.message } };
     }
   }
 }
 
-// Authentication flow redirected to server API auth endpoints
+// ─── Auth Proxy ───────────────────────────────────────────────────────────────
 const apiAuth = {
   async getSession() {
     try {
-      const res = await fetch('/api/auth/session');
+      const res = await fetch('/api/auth/session', { headers: authHeaders() });
       if (!res.ok) return { data: { session: null }, error: null };
       const data = await res.json();
       return { data: { session: data.session }, error: null };
@@ -181,34 +176,31 @@ const apiAuth = {
     }
   },
 
+  // Verifica sessão periodicamente (a cada 5 minutos — apenas para keepalive)
   onAuthStateChange(callback: any) {
-    const checkSession = async () => {
+    const check = async () => {
       const res = await this.getSession();
       callback('SIGNED_IN', res.data.session);
     };
-    checkSession();
-    
-    const interval = setInterval(checkSession, 12000); // Check occasionally
+    check();
+    const interval = setInterval(check, 5 * 60 * 1000);
     return {
       data: {
-        subscription: {
-          unsubscribe() {
-            clearInterval(interval);
-          }
-        }
+        subscription: { unsubscribe() { clearInterval(interval); } }
       }
     };
   },
 
-  async signInWithOAuth(params: any) {
+  async signInWithOAuth(_params: any) {
     try {
       const res = await fetch('/api/auth/login', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: 'flavio.nunes@defensoria.rj.def.br', provider: 'google' })
       });
-      if (!res.ok) return { error: { message: 'Erro de autenticação Google.' } };
+      if (!res.ok) return { error: { message: 'Erro de autenticação.' } };
       const data = await res.json();
+      if (data.session?.access_token) setStoredToken(data.session.access_token);
       return { error: null };
     } catch (e: any) {
       return { error: { message: e.message } };
@@ -218,15 +210,15 @@ const apiAuth = {
   async signInWithPassword(params: any) {
     try {
       const res = await fetch('/api/auth/login', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
       });
       if (!res.ok) {
-        const txt = await res.text();
-        return { data: null, error: { message: txt } };
+        return { data: null, error: { message: await res.text() } };
       }
       const data = await res.json();
+      if (data.session?.access_token) setStoredToken(data.session.access_token);
       return { data: { session: data.session, user: data.session?.user }, error: null };
     } catch (e: any) {
       return { data: null, error: { message: e.message } };
@@ -235,7 +227,8 @@ const apiAuth = {
 
   async signOut() {
     try {
-      await fetch('/api/auth/logout', { method: "POST" });
+      await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() });
+      setStoredToken('');
       return { error: null };
     } catch (e: any) {
       return { error: { message: e.message } };
@@ -245,35 +238,25 @@ const apiAuth = {
   async updateUser(updates: any) {
     try {
       const res = await fetch('/api/auth/profile', {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify(updates.data)
       });
       if (!res.ok) {
-        const txt = await res.text();
-        return { data: null, error: { message: txt } };
+        return { data: null, error: { message: await res.text() } };
       }
-      const data = await res.json();
-      return { data: { user: data.user }, error: null };
+      return { data: { user: (await res.json()).user }, error: null };
     } catch (e: any) {
       return { data: null, error: { message: e.message } };
     }
   }
 };
 
-// Proxied supabase client matching 100% of frontend calls seamlessly
+// ─── Proxy Supabase ───────────────────────────────────────────────────────────
 export const supabase = new Proxy({} as any, {
-  get(target, prop, receiver) {
-    if (prop === 'auth') {
-      return apiAuth;
-    }
-
-    if (prop === 'from') {
-      return (table: string) => {
-        return new ApiQueryBuilder(table);
-      };
-    }
-
-    return Reflect.get(target, prop, receiver);
+  get(_target, prop) {
+    if (prop === 'auth') return apiAuth;
+    if (prop === 'from') return (table: string) => new ApiQueryBuilder(table);
+    return undefined;
   }
-}) as unknown as SupabaseClient<any, "public", any>;
+}) as unknown as SupabaseClient<any, 'public', any>;

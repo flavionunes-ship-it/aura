@@ -3,9 +3,11 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../services/supabase';
 import Spinner from '../components/Spinner';
+import { useToast } from '../components/Toast';
 
 const UserProfile: React.FC = () => {
     const { user, updateProfile, signOut, deleteAccount } = useAuth();
+    const { showToast } = useToast();
     const [name, setName] = useState(user?.user_metadata?.full_name || '');
     const [avatarUrl, setAvatarUrl] = useState(user?.user_metadata?.avatar_url || '');
     const [loading, setLoading] = useState(false);
@@ -34,7 +36,8 @@ const UserProfile: React.FC = () => {
     };
 
     const handleDelete = async () => {
-        if (window.confirm("Tem certeza que deseja solicitar a exclusão da sua conta? Esta ação não pode ser desfeita.")) {
+        if (window.confirm("Tem certeza? Para exclusão permanente, um administrador será notificado. Você será desconectado agora.")) {
+            showToast('Para exclusão permanente, entre em contato com o administrador.', 'info');
             await deleteAccount();
         }
     };

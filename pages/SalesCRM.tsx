@@ -3,10 +3,12 @@ import React, { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Deal, DealStatus, ContactType } from '../types';
 import Modal from '../components/Modal';
+import { useToast } from '../components/Toast';
 import { SALES_STAGES, STAGE_COLORS } from '../constants';
 
 const DealForm: React.FC<{ deal?: Deal; onSave: (deal: Omit<Deal, 'id'> | Deal) => void; onCancel: () => void; }> = ({ deal, onSave, onCancel }) => {
     const { contacts, products } = useAppContext();
+    const { showToast } = useToast();
     const [title, setTitle] = useState(deal?.title || '');
     const [contactId, setContactId] = useState(deal?.contactId || '');
     const [productId, setProductId] = useState(deal?.productId || '');
@@ -29,7 +31,7 @@ const DealForm: React.FC<{ deal?: Deal; onSave: (deal: Omit<Deal, 'id'> | Deal) 
 
         if (status === DealStatus.WON) {
             if (!predictedBillingDate) {
-                alert('A data de previsão de faturamento é obrigatória para negócios ganhos.');
+                showToast('A data de previsão de faturamento é obrigatória para negócios ganhos.', 'warning');
                 return;
             }
             dealData.predictedBillingDate = new Date(predictedBillingDate).toISOString();
@@ -155,12 +157,13 @@ const KanbanColumn: React.FC<{
 
 const BillingDateModal: React.FC<{ deal: Deal; onConfirm: (dealWithDate: Deal) => void; onCancel: () => void; }> = ({ deal, onConfirm, onCancel }) => {
     const [date, setDate] = useState('');
+    const { showToast } = useToast();
 
     const handleSubmit = () => {
         if (date) {
             onConfirm({ ...deal, predictedBillingDate: new Date(date).toISOString() });
         } else {
-            alert('Por favor, selecione uma data.');
+            showToast('Por favor, selecione uma data de faturamento.', 'warning');
         }
     };
 

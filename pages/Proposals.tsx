@@ -9,9 +9,11 @@ import { useAppContext } from '../context/AppContext';
 import { Proposal, ProposalItem, ProposalStatus, ContactType, Product, Contact } from '../types';
 import Modal from '../components/Modal';
 import Spinner from '../components/Spinner';
+import { useToast } from '../components/Toast';
 
 const ProposalForm: React.FC<{ proposal?: Proposal; onSave: (proposal: Omit<Proposal, 'id'> | Proposal) => void; onCancel: () => void; }> = ({ proposal, onSave, onCancel }) => {
     const { contacts, products, systemConfig, proposalStatuses } = useAppContext();
+    const { showToast } = useToast();
     const [clientId, setClientId] = useState(proposal?.clientId || '');
     const [items, setItems] = useState<ProposalItem[]>(proposal?.items || []);
     const [generatedText, setGeneratedText] = useState(proposal?.generatedText || '');
@@ -36,7 +38,7 @@ const ProposalForm: React.FC<{ proposal?: Proposal; onSave: (proposal: Omit<Prop
         if (firstProduct) {
              setItems([...items, { productId: '', quantity: 1, unitPrice: 0, dueDate: undefined }]);
         } else {
-            alert("Por favor, cadastre um produto primeiro.");
+            showToast('Cadastre um produto antes de adicionar itens à proposta.', 'info');
         }
     };
 

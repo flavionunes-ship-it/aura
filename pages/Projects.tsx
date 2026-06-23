@@ -14,6 +14,7 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { Project, ProjectStage, ProjectTask, ProjectStatus, ProjectProduct, QualityCriterion, ContactType } from '../types';
 import Modal from '../components/Modal';
+import { useToast } from '../components/Toast';
 
 // --- Sub-component: TaskForm ---
 const TaskForm: React.FC<{ task?: ProjectTask; stageId: string; projectId: string; onSave: (task: Omit<ProjectTask, 'id'> | ProjectTask) => void; onCancel: () => void; }> = ({ task, stageId, projectId, onSave, onCancel }) => {
@@ -141,6 +142,7 @@ const TaskForm: React.FC<{ task?: ProjectTask; stageId: string; projectId: strin
 // --- Sub-component: ProjectStagesView (Kanban) ---
 const ProjectStagesView: React.FC<{ project: Project }> = ({ project }) => {
     const { projectStages, projectTasks, updateStage, deleteStage, addStage, addTask, updateTask, deleteTask } = useAppContext();
+    const { showToast } = useToast();
     const [isStageModalOpen, setIsStageModalOpen] = useState(false);
     const [editingStage, setEditingStage] = useState<ProjectStage | undefined>(undefined);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -192,7 +194,7 @@ const ProjectStagesView: React.FC<{ project: Project }> = ({ project }) => {
     const handleDeleteStage = (stageId: string) => {
         const tasksInStage = projectTasks.filter(t => t.stageId === stageId && t.projectId === project.id);
         if (tasksInStage.length > 0) {
-            alert('Não é possível excluir este estágio pois existem tarefas associadas a ele. Remova ou mova as tarefas antes de excluir o estágio.');
+            showToast('Remova ou mova todas as tarefas desta fase antes de excluí-la.', 'warning');
             return;
         }
         if (window.confirm('Tem certeza que deseja excluir este estágio?')) {

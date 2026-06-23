@@ -3,10 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Transaction, TransactionType, Partner, ContactType } from '../types';
 import Modal from '../components/Modal';
+import { useToast } from '../components/Toast';
 
 // --- Sub-component: TransactionForm (Receitas, Despesas, Investimentos) ---
 const TransactionForm: React.FC<{ transaction?: Transaction; onSave: (transaction: Omit<Transaction, 'id'> | Transaction) => void; onCancel: () => void; }> = ({ transaction, onSave, onCancel }) => {
     const { partners, contacts } = useAppContext();
+    const { showToast } = useToast();
     const [description, setDescription] = useState(transaction?.description || '');
     const [amount, setAmount] = useState(transaction?.amount || 0);
     const [date, setDate] = useState(transaction?.date ? transaction.date.split('T')[0] : new Date().toISOString().split('T')[0]);
@@ -41,7 +43,7 @@ const TransactionForm: React.FC<{ transaction?: Transaction; onSave: (transactio
         if (type === TransactionType.INVESTMENT) {
             payload.partnerId = investmentPartnerId;
             if(!investmentPartnerId) {
-                alert("Por favor, selecione um sócio para o investimento.");
+                showToast('Selecione um sócio para o investimento.', 'warning');
                 return;
             }
             // Clear contactId just in case
@@ -146,6 +148,7 @@ const TransactionForm: React.FC<{ transaction?: Transaction; onSave: (transactio
 // --- Sub-component: TransferForm (Transferência entre Sócios) ---
 const TransferForm: React.FC<{ onSave: (transaction: Omit<Transaction, 'id'>) => void; onCancel: () => void; }> = ({ onSave, onCancel }) => {
     const { partners } = useAppContext();
+    const { showToast } = useToast();
     const [fromPartnerId, setFromPartnerId] = useState('');
     const [toPartnerId, setToPartnerId] = useState('');
     const [amount, setAmount] = useState(0);
@@ -154,7 +157,7 @@ const TransferForm: React.FC<{ onSave: (transaction: Omit<Transaction, 'id'>) =>
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (fromPartnerId === toPartnerId) {
-            alert("O sócio de origem e destino não podem ser o mesmo.");
+            showToast('O sócio de origem e destino não podem ser o mesmo.', 'warning');
             return;
         }
         
@@ -442,23 +445,25 @@ const FinancePage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'GENERAL' | 'INVESTMENT'>('GENERAL');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>(undefined);
+    const [search, setSearch] = useState('');
 
     const { revenues, expenses, netBalance } = useMemo(() => {
-        // Updated: Revenues now include direct REVENUE transactions AND INVESTMENT transactions
         const revenues = transactions.filter(t => t.type === TransactionType.REVENUE || t.type === TransactionType.INVESTMENT);
         const expenses = transactions.filter(t => t.type === TransactionType.EXPENSE);
         const totalRevenue = revenues.reduce((sum, t) => sum + t.amount, 0);
         const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
         return { revenues, expenses, netBalance: totalRevenue - totalExpense };
     }, [transactions]);
-    
+
     const displayedTransactions = useMemo(() => {
-         if (activeTab === 'INVESTMENT') return [];
-         // General Tab: Revenue and Expense
-         return transactions
+        if (activeTab === 'INVESTMENT') return [];
+        const base = transactions
             .filter(t => t.type === TransactionType.REVENUE || t.type === TransactionType.EXPENSE)
-            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [transactions, activeTab]);
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        if (!search.trim()) return base;
+        const q = search.toLowerCase();
+        return base.filter(t => t.description?.toLowerCase().includes(q));
+    }, [transactions, activeTab, search]);
 
     const formatCurrency = (value: number) => {
         return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -485,9 +490,23 @@ const FinancePage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Financeiro</h1>
-                <button onClick={() => { setEditingTransaction(undefined); setIsModalOpen(true); }} className="mt-4 md:mt-0 px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Adicionar Transação</button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                    {activeTab === 'GENERAL' && (
+                        <div className="relative">
+                            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <input
+                                type="text"
+                                placeholder="Buscar lançamento..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-primary-500 focus:border-primary-500 w-full sm:w-60"
+                            />
+                        </div>
+                    )}
+                    <button onClick={() => { setEditingTransaction(undefined); setIsModalOpen(true); }} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:ring-4 focus:outline-none focus:ring-primary-300 whitespace-nowrap">Adicionar Transação</button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
