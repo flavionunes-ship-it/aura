@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from "express";
 import path from "path";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -830,6 +829,7 @@ async function startServer() {
   await initializeSchema();
 
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa"
